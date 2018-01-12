@@ -4,7 +4,7 @@ Tags: wordpress woocommerce pay what you want
 Donate link: http://draekko.com
 Requires at least: 3.9.1
 Tested up to: 3.9.2
-Stable tag: 1.0.0
+Stable tag: 1.0.2
 License: GPL v3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -47,13 +47,24 @@ Public License for more details.
 
 == Changelog ==
 
+= 1.0.3 =
+* Fixed the bug where the cart indactor shows the minimum price instead of the
+  general price when the general price is set to 0 when "WooCommerce Pay What
+  You Want" is disabled.
+
+= 1.0.2 =
+* Fixed occasional $0.00 item amount that showed up in cart
+* Fixed external item display on shop page so that it displays 
+  a description text instead of the price query.
+* Added enhanced sales tags.
+
 = 1.0.0 =
 * Initial version
 
-
 == Frequently Asked Questions ==
 
-N/A
+= Why don't i see a price for my product? =
+Enter a price value in the general section. If it is left blank no price will show for that product.
 
 == Upgrade Notice ==
 

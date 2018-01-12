@@ -63,7 +63,7 @@ function pwywHideSpinner() {
     jQuery(".pwyw_spinner_container").css("display", "none");
 }
 
-function pwyw_add_variation_to_cart(postitem) {
+function pwyw_add_variation_to_cart(postitem, return_id) {
     var amount = 0;
     var price = 0;
 
@@ -83,6 +83,7 @@ function pwyw_add_variation_to_cart(postitem) {
 
     var data = {
         'action': 'wc_pay_what_you_want_add_to_cart',
+        'wc_pay_what_you_want_post_id': return_id,
         'wc_pay_what_you_want_pid': postitem,
         'wc_pay_what_you_want_qty': qty,
         'wc_pay_what_you_want_amt': price.toFixed(2),
@@ -113,7 +114,7 @@ function pwyw_add_variation_to_cart(postitem) {
     });
 }
 
-function pwyw_add_to_cart(postitem) {
+function pwyw_add_to_cart(postitem, return_id) {
     var amount = jQuery('#pwyw_input_pay_amount_'+postitem).maskMoney('unmasked')[0];
     if (amount == null || amount == 'undefined') {
         amount = jQuery('#pwyw_input_pay_amount_store_'+postitem).maskMoney('unmasked')[0];
@@ -127,6 +128,7 @@ function pwyw_add_to_cart(postitem) {
 
     var data = {
         'action': 'wc_pay_what_you_want_add_to_cart',
+        'wc_pay_what_you_want_post_id': return_id,
         'wc_pay_what_you_want_pid': postitem,
         'wc_pay_what_you_want_qty': qty,
         'wc_pay_what_you_want_amt': price.toFixed(2),

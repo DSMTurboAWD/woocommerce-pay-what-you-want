@@ -6,8 +6,8 @@ Description: Adds the ability to let users set their own prices for products in 
 Author: Draekko
 Author URI: http://draekko.com
 Requires at least: 3.9.1
-Tested up to: 3.9.1
-Version: 1.0.0
+Tested up to: 3.9.2
+Version: 1.0.3
 License: GPLv3 or later
 */
 
@@ -51,10 +51,11 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
         /*********************************************************************/
 
         public function __construct() {
-            global $post;
+            global $post, $woocommerce;
 
             $enabled = get_option( self::ID . '_plugin_enabled' );
             if ( $enabled == 'yes' || $enabled == '1' ) {
+
                 // Load stuff here if enabled
                 $debug_js_suffix='.min';
                 if (WP_DEBUG) {
@@ -87,7 +88,7 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
             add_action( 'wp_head', array( &$this, self::ID . '_h_init' ), 0);
             add_action( 'plugins_loaded', array( &$this, self::ID . '_p_init' ), 0);
             add_action( 'init', array( &$this, self::ID . '_c_init' ), 0 );
-            add_filter( 'loop_shop_columns', array( &$this, 'pwyw_product_columns_frontend' ) );
+            //add_filter( 'loop_shop_columns', array( &$this, 'pwyw_product_columns_frontend' ) );
         }
 
         function get_price_add_cart_buttons() {
@@ -176,6 +177,10 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
             /* QUEUE JS */
             add_action( 'wp_enqueue_scripts', __CLASS__ . '::set_product_css', 999 );
             //add_action( 'wp_print_styles', __CLASS__ . '::set_product_js_css', 999 );
+
+            /* SMART SALES TAG */
+            add_filter( 'woocommerce_sale_flash', array( &$this, 'smarttag_sale_amount_none' ), 10, 3 );
+    		add_action( 'single_product_large_thumbnail_size', array( $this, 'smarttag_sale_amount' ), 30 );
         }
 
         /***************************************************************/
@@ -903,6 +908,8 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
             return $link;
         }
 
+        /***************************************************************/
+
         public static function add_cart_item_custom_data_price( $cart_item, $product_id ) {
             global $woocommerce;
             $pid = 0;
@@ -939,6 +946,7 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
                 $max_amt = floatVal( $max_amt );
                 if ( $amt > $max_amt && $max_amt > 0 ) $amt = $max_amt;
             }
+
             $cart_item['pwyw_price'] = $amt;
             $cart_item['pwyw_quantity'] = $qty;
             $cart_item['pwyw_product_id'] = $pid;
@@ -962,7 +970,28 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
 
         public static function pwyw_add_cart_item($cart_item) {
             global $woocommerce;
-            $cart_item['data']->set_price($cart_item['pwyw_price']);
+            $is_pwyw = false;
+            $post_id = 0;
+
+            if ( isset( $cart_item['variation_id'] ) && $cart_item['variation_id'] > 0 ) {
+                $post_id = $cart_item['variation_id'];
+            } else if ( isset( $cart_item['product_id'] ) && $cart_item['product_id'] > 0 ) {
+                $post_id = $cart_item['product_id'];
+            }
+
+            $value = get_post_meta( $post_id, self::ID . '_enable_for_product', true );
+            if( $value == '1' || $value == 'yes' ) {
+                if ( isset( $cart_item['pwyw_variation_id'] ) && $cart_item['pwyw_variation_id'] > 0 ) {
+                    $post_id = $cart_item['pwyw_variation_id'];
+                } else if ( isset( $cart_item['pwyw_product_id'] ) && $cart_item['pwyw_product_id'] > 0 ) {
+                    $post_id = $cart_item['pwyw_product_id'];
+                }
+
+                //$is_pwyw = true;
+                $amt = $cart_item['pwyw_price'];
+                $cart_item['data']->set_price($amt);
+            }
+
             return $cart_item;
         }
 
@@ -975,7 +1004,9 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
             $amt = 0;
             $qty = 0;
             $vri = 0;
+            $price = 0;
 
+            $product_enabled = get_post_meta( $pid, self::ID . '_enable_for_product', true );
             if ( isset( $_POST ) ) {
                 if ( isset( $_POST[self::ID . '_pid'] ) || !empty( $_POST[self::ID . '_pid'] ) ) {
                     $pid = intval( filter_var( $_POST[self::ID . '_pid'], FILTER_SANITIZE_STRING )  );
@@ -983,8 +1014,10 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
                 if ( isset( $_POST[self::ID . '_qty'] ) || !empty( $_POST[self::ID . '_qty'] ) ) {
                     $qty = floatval( filter_var( $_POST[self::ID . '_qty'], FILTER_SANITIZE_STRING ) );
                 }
-                if ( isset( $_POST[self::ID . '_amt'] ) || !empty( $_POST[self::ID . '_amt'] ) ) {
-                    $amt = floatval( filter_var( $_POST[self::ID . '_amt'], FILTER_SANITIZE_STRING ) );
+                if ( $product_enabled == '1' && $product_enabled == 'yes' ) {
+                    if ( isset( $_POST[self::ID . '_amt'] ) || !empty( $_POST[self::ID . '_amt'] ) ) {
+                        $amt = floatval( filter_var( $_POST[self::ID . '_amt'], FILTER_SANITIZE_STRING ) );
+                    }
                 }
                 if ( isset( $_POST[self::ID . '_vri'] ) || !empty( $_POST[self::ID . '_vri'] ) ) {
                     $vri = intval( filter_var( $_POST[self::ID . '_vri'], FILTER_SANITIZE_STRING ) );
@@ -992,27 +1025,33 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
                 if ( !isset( $pid ) || !isset( $amt ) || !isset( $vri ) || $amt < 0 || $vri < 0 || $pid < 1 ) {
                     // DOOP ... SHIT HAPPENS!
                 } else {
-                    $min_amt = get_post_meta( $pid, self::ID . '_amount_min_price', true );
-                    $max_amt = get_post_meta( $pid, self::ID . '_amount_max_price', true );
+                    if ( $product_enabled == '1' && $product_enabled == 'yes' ) {
+                        $min_amt = get_post_meta( $pid, self::ID . '_amount_min_price', true );
+                        $max_amt = get_post_meta( $pid, self::ID . '_amount_max_price', true );
 
-                    if ( isset( $min_amt ) && !empty( $min_amt ) ) {
-                        $min_amt = floatVal( $min_amt );
-                        if ( $amt < 0 ) $amt = 0;
-                        if ( $amt < $min_amt ) $amt = $min_amt;
+                        if ( isset( $min_amt ) && !empty( $min_amt ) ) {
+                            $min_amt = floatVal( $min_amt );
+                            if ( $amt < 0 ) $amt = 0;
+                            if ( $amt < $min_amt ) $amt = $min_amt;
+                        }
+                        if ( isset( $max_amt ) && !empty( $max_amt ) ) {
+                            $max_amt = floatVal( $max_amt );
+                            if ( $amt > $max_amt && $max_amt > 0 ) $amt = $max_amt;
+                        }
+                    } else {
+                        $amt = get_post_meta( $post->ID, '_price', true);
+                        if ( empty( $price ) ) {
+                            $amt = get_post_meta( $post->ID, '_regular_price', true);
+                        }
                     }
-                    if ( isset( $max_amt ) && !empty( $max_amt ) ) {
-                        $max_amt = floatVal( $max_amt );
-                        if ( $amt > $max_amt && $max_amt > 0 ) $amt = $max_amt;
-                    }
-                    $cart_item['pwyw_price'] = $amt;
+
+                    $price = floatval( $amt );
+
+                    $cart_item['pwyw_price'] = $price;
                     $cart_item['pwyw_quantity'] = $qty;
                     $cart_item['pwyw_product_id'] = $pid;
                     $cart_item['pwyw_variation_id'] = $vri;
 
-                    $price = $amt;
-                    $product_enabled = get_post_meta( $pid, self::ID . '_enable_for_product', true );
-                    $product_min = get_post_meta( $pid, self::ID . '_amount_min_price', true );
-                    $product_max = get_post_meta( $pid, self::ID . '_amount_max_price', true );
                     foreach ($woocommerce->cart->get_cart() as $cart_item_key => $values) {
                         $product_enabled = get_post_meta( $values['product_id'], self::ID . '_enable_for_product', true );
                         if ( $product_enabled != '1' && $product_enabled != 'yes' ) {
@@ -1021,14 +1060,13 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
                             continue;
                         }
                         if($cart_item_key == $thekey) {
-                            $values['data']->set_price($price);
-                            $values['pwyw_price'] = $price;
-                            $woocommerce->session->__set($thekey .'_named_price', $price);
+                                $values['data']->set_price($price);
+                                $values['pwyw_price'] = $price;
+                                $woocommerce->session->__set($thekey .'_named_price', $price);
                         }
                     }
                 }
             }
-
 
             return $thekey;
         }
@@ -1042,6 +1080,7 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
             $amt = 0;
             $qty = 0;
             $vri = 0;
+            $price = 0;
 
             if ( isset( $_POST ) ) {
                 if ( isset( $_POST[self::ID . '_pid'] ) || !empty( $_POST[self::ID . '_pid'] ) ) {
@@ -1071,12 +1110,12 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
                         $max_amt = floatVal( $max_amt );
                         if ( $amt > $max_amt && $max_amt > 0 ) $amt = $max_amt;
                     }
+
                     $cart_item['pwyw_price'] = $amt;
                     $cart_item['pwyw_quantity'] = $qty;
                     $cart_item['pwyw_product_id'] = $pid;
                     $cart_item['pwyw_variation_id'] = $vri;
 
-                    $price = $amt;
                     $product_enabled = get_post_meta( $pid, self::ID . '_enable_for_product', true );
                     foreach ( $cartandbuggy->cart_contents as $key => $value ) {
                         if ( $product_enabled != '1' && $product_enabled != 'yes' ) {
@@ -1253,7 +1292,7 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
             //}
             //echo "<div class='". $pwyw_offers_class ."' itemprop=\"offers\" itemscope itemtype=\"http://schema.org/Offer\">";
             //echo "<div itemprop=\"offers\" itemscope itemtype=\"http://schema.org/Offer\">";
-             if ( $product->is_type( 'variable' ) ||  $product->is_type( 'grouped' ) ) {
+             if ( $product->is_type( 'variable' ) ||  $product->is_type( 'grouped' )  ||  $product->is_type( 'external' ) ) {
                 echo "	<p class=\"price".$pwyw_class."\">" . $itemprice . "</p>";
             } else {
                 echo "	<span class=\"price".$pwyw_class."\">" . $itemprice . "</span>";
@@ -1356,12 +1395,22 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
             //    return;
             //}
 
-            $external_filter = get_option(self::ID . '_filters_group_external');
-            if ( ( $product->is_type('external') ) && ( $external_filter != 'yes' ) ) {
+            //$external_filter = get_option(self::ID . '_filters_group_external');
+            //if ( ( $product->is_type('external') ) && ( $external_filter != 'yes' ) ) {
+            //    self::set_original_external_product_price( $price, $product );
+            //    return;
+            //}
+
+            //if ( ( $product->is_type('external') ) && is_shop() ) {
+            //    self::set_original_external_product_price( $price, $product );
+            //    return;
+            //}
+
+            if ( $product->is_type('external') ) {
                 self::set_original_external_product_price( $price, $product );
                 return;
             }
-
+            
             /* STOCK OVERRIDE */
             $stock_override = get_option(self::ID . '_show_stocks');
 
@@ -1804,8 +1853,13 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
         /*********************************************************************/
 
         function add_to_cart_button() {
-            global $product, $post, $pwyw_related_product;
+            global $woocommerce, $product, $post, $pwyw_related_product;
 
+            $_post_id = $post->ID;
+            if ( is_shop() ) {
+                $_post_id = get_option( 'woocommerce_shop_page_id' );
+            }
+            
             if ( $pwyw_related_product ) {
                 echo '<a href="' . get_permalink($post->ID) . '" class="button add_to_cart_button product_type_external">' . $this->get_related_button_ext() . '</a>';
                 return;
@@ -1815,7 +1869,7 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
             if ( is_shop() ) self::set_product_price ( $product->get_price(), $product );
             $external_filter = get_option(self::ID . '_filters_group_external');
             if ( ( !$product->is_type('external') ) && ( $external_filter != 'yes' ) ) {
-                echo "<input type='button' data-amount='". $pwyw_amount . "' data-pid='" . $post->ID . "' onclick='pwyw_add_to_cart(" . $post->ID . ");' class='button add_to_cart_button product_type_external' value='" . $product->add_to_cart_text() . "' >";
+                echo "<input type='button' data-amount='". $pwyw_amount . "' data-pid='" . $post->ID . "' onclick='pwyw_add_to_cart(" . $post->ID . "," . $_post_id . ");' class='button add_to_cart_button product_type_external' value='" . $product->add_to_cart_text() . "' >";
             } else {
                 if ( $product->is_type('external') ) {
                     echo '<a href="' . $product->get_product_url() . '" class="button add_to_cart_button product_type_external">' . $product->add_to_cart_text() . '</a>';
@@ -1824,7 +1878,7 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
                 } elseif ( $product->is_type('variable') ) {
                     echo '<a href="' . get_permalink($post->ID) . '" class="button add_to_cart_button product_type_external">' . $product->add_to_cart_text() . '</a>';
                 } else {
-                    echo "<input type='button' data-amount='". $pwyw_amount . "' data-pid='" . $post->ID . "' onclick='pwyw_add_to_cart(" . $post->ID . ");' class='button add_to_cart_button product_type_external' value='" . $product->add_to_cart_text() . "' >";
+                    echo "<input type='button' data-amount='". $pwyw_amount . "' data-pid='" . $post->ID . "' onclick='pwyw_add_to_cart(" . $post->ID . "," . $_post_id  . ");' class='button add_to_cart_button product_type_external' value='" . $product->add_to_cart_text() . "' >";
                 }
             }
         }
@@ -2112,8 +2166,14 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
                     'min_value'     => '1',
                     'step'          => '1'
                 );
+
+                $_post_id = $post->ID;
+                if ( is_shop() ) {
+                    $_post_id = get_option( 'woocommerce_shop_page_id' );
+                }
+                
 				woocommerce_quantity_input( $defaults, $product, true );
-                echo '      <button onclick="pwyw_add_variation_to_cart('. esc_attr( $post->ID ) .')" type="button" class="single_add_to_cart_button button alt pwyw_price_input">' . $product->single_add_to_cart_text() . '</button>';
+                echo '      <button onclick="pwyw_add_variation_to_cart('. esc_attr( $post->ID ) . "," . $_post_id .')" type="button" class="single_add_to_cart_button button alt pwyw_price_input">' . $product->single_add_to_cart_text() . '</button>';
                 echo '  </div>';
 
                 echo '  <input type="hidden" name="add-to-cart" value="' . $product->id . '" />';
@@ -2187,9 +2247,13 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
             ?>
             <input type="hidden" name="add-to-cart" value="<?php echo esc_attr( $product->id ); ?>" />
             <?php
+                $_post_id = $post->ID;
+                if ( is_shop() ) {
+                    $_post_id = get_option( 'woocommerce_shop_page_id' );
+                }
                 $pwyw_amount = self::get_single_item_price();
                 /*<button type="submit" class="single_add_to_cart_button button alt"><?php echo $product->single_add_to_cart_text(); ?></button> */
-                echo '<input type="button" data-amount="' . $pwyw_amount . '" data-pid="' . $post->ID . '" onclick="pwyw_add_to_cart(' . $post->ID . ');" class="single_add_to_cart_button button alt pwyw_price_input" value="' . $product->add_to_cart_text() . '" >';
+                echo '<input type="button" data-amount="' . $pwyw_amount . '" data-pid="' . $post->ID . '" onclick="pwyw_add_to_cart(' . $post->ID . "," . $_post_id . ');" class="single_add_to_cart_button button alt pwyw_price_input" value="' . $product->add_to_cart_text() . '" >';
                 //echo '<input type="button" id="single_add_to_cart_button" data-pid="' . $post->ID . '" class="single_add_to_cart_button button alt" value="' . $product->add_to_cart_text() . '" >';
                 do_action( 'woocommerce_after_add_to_cart_button' ); ?>
             </form>
@@ -2228,11 +2292,17 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
             $qty = 0;
             $pid = 0;
             $vri = 0;
+            $_post_id = 0;
             $submitted = false;
 
             if ( isset( $_POST ) ) {
                 if ( isset( $_POST['submit'] ) || isset( $_POST['SUBMIT'] ) ) {
                     $submitted = true;
+                }
+                if ( isset( $_POST[self::ID . '_post_id'] ) || !empty( $_POST[self::ID . '_post_id'] ) ) {
+                    $_post_id = intval( filter_var( $_POST[self::ID . '_post_id'], FILTER_SANITIZE_STRING )  );
+                } else {
+                    $_post_id = 0;
                 }
                 if ( isset( $_POST[self::ID . '_pid'] ) || !empty( $_POST[self::ID . '_pid'] ) ) {
                     $pid = intval( filter_var( $_POST[self::ID . '_pid'], FILTER_SANITIZE_STRING )  );
@@ -2315,12 +2385,17 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
                 if ($redirect_cart == '1' || $redirect_cart == 'yes') {
                     $return_to_cart = true;
                 }
-                $return_id = $pid;
+
+                if ( get_option( 'woocommerce_shop_page_id' ) == $_post_id && $_post_id > 0 ) {
+                    $return_id = get_option( 'woocommerce_shop_page_id' );
+                } else {
+                    $return_id = $pid;
+                }
+
                 if ( $return_to_cart ) {
                     $return_id = get_option( 'woocommerce_cart_page_id' );
-                } else if ( is_shop() ) {
-                    $return_id = get_option('woocommerce_shop_page_id');
-                }
+                } 
+
                 echo get_permalink( $return_id );
             } else {
                 echo "ERROR: " . $error_message;
@@ -2404,6 +2479,91 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
 
         /*********************************************************************/
 
+        public function smarttag_sale_amount_none( $message, $post, $product ) {
+            global $pwyw_related_product;
+            if ( is_shop() || $pwyw_related_product == true ) {
+                $saving_amount = 0;
+                if ( $product->has_child() ) {
+                    foreach ( $product->get_children() as $child_id ) {
+                        $regular_price = get_post_meta( $child_id, '_regular_price', true );
+                        $sale_price = get_post_meta( $child_id, '_sale_price', true );
+
+                        if( $regular_price != '' && $sale_price != '' && $regular_price > $sale_price ) {
+                            $new_saving_amount = $regular_price - $sale_price;
+                            if( $new_saving_amount > $saving_amount ) {
+                                $saving_amount = $new_saving_amount;
+                            }
+                        }
+                    }
+                    $button_text = __( 'Save up to', 'wc_smart_sale_badge' );
+                } else {
+                    $regular_price = get_post_meta( $post->ID, '_regular_price', true );
+                    $sale_price = get_post_meta( $post->ID, '_sale_price', true );
+                    if( $regular_price != '' && $sale_price != '' && $regular_price > $sale_price ) {
+                        $saving_amount = $regular_price - $sale_price;
+                    }
+                    $button_text = __( 'Save', self::ID );
+                }
+
+                if( $saving_amount > 0 ) {
+                    $saving_price = woocommerce_price( $saving_amount );
+                    $message = '<span class="onsale smarttag"><div class="p_smarttag">' . $button_text . sprintf( __( ' %s!', self::ID ), $saving_price ) . '</div></span>';
+                }
+            } else {
+                $message = '';
+            }
+            return $message;
+        }
+
+        /*********************************************************************/
+
+        public function smarttag_sale_amount( ) {
+            global $post, $product, $setsalebadge;
+            if (is_shop()) {
+                return;
+            }
+
+            if ( is_product() && !isset( $setsalebadge ) ) {
+                $setsalebadge = false;
+            }
+             
+            if ( is_product() && isset( $setsalebadge ) && $setsalebadge == true ) {
+            } else {
+                $message = '';
+                $saving_amount = 0;
+                if ( $product->has_child() ) {
+                    foreach ( $product->get_children() as $child_id ) {
+                        $regular_price = get_post_meta( $child_id, '_regular_price', true );
+                        $sale_price = get_post_meta( $child_id, '_sale_price', true );
+
+                        if( $regular_price != '' && $sale_price != '' && $regular_price > $sale_price ) {
+                            $new_saving_amount = $regular_price - $sale_price;
+                            if( $new_saving_amount > $saving_amount ) {
+                                $saving_amount = $new_saving_amount;
+                            }
+                        }
+                    }
+                    $button_text = __( 'Save up to', 'wc_smart_sale_badge' );
+                } else {
+                    // Fetch prices for simple products
+                    $regular_price = get_post_meta( $post->ID, '_regular_price', true );
+                    $sale_price = get_post_meta( $post->ID, '_sale_price', true );
+                    if( $regular_price != '' && $sale_price != '' && $regular_price > $sale_price ) {
+                        $saving_amount = $regular_price - $sale_price;
+                    }
+                    $button_text = __( 'Save', self::ID );
+                }
+
+                if( $saving_amount > 0 ) {
+                    $saving_price = woocommerce_price( $saving_amount );
+                    $message = '<span class="onsale-smarttag">' . $button_text . sprintf( __( ' %s!', self::ID ), $saving_price ) . '</span>';
+                }
+
+                echo $message;
+            }
+
+            $setsalebadge = true;
+        }
     }
 
     /* LAUNCH PLUGIN */
