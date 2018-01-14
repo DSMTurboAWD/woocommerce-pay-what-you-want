@@ -999,6 +999,7 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
 
         public function add_to_cart_hook($thekey) {
             global $woocommerce;
+            global $post;
 
             $pid = 0;
             $amt = 0;
@@ -1884,7 +1885,10 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
         }
 
         /*********************************************************************/
-
+        public function getID()
+        {
+            return $this->id;
+        }
         public function set_grouped_add_to_cart() {
             global $product, $post;
 
@@ -1959,7 +1963,7 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
             echo '  </table>';
 
             echo '  <input id="pwyw-add-to-cart-grouped" type="hidden" name="add-to-cart-grouped" value="true" />';
-            echo '  <input type="hidden" name="add-to-cart" value="' . esc_attr( $product->id ) . '" />';
+            echo '  <input type="hidden" name="add-to-cart" value="' . esc_attr( $product->getID() ) . '" />';
             if ( $quantites_required ) {
                 do_action( 'woocommerce_before_add_to_cart_button' );
                 echo '  <button type="submit" class="single_add_to_cart_button button alt pwyw_price_input pwyw_grouped">' . $product->single_add_to_cart_text() . '</button>';
