@@ -1981,6 +1981,7 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
 
         public function set_variable_add_to_cart() {
             global $woocommerce, $product, $post;
+            global $selected_attributes;
 
             $show_if_stocked = get_post_meta( $post->ID,  self::ID . '_show_stock_product', true );
             $stock_override = get_option(self::ID . '_show_stocks');
