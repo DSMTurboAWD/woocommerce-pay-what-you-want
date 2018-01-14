@@ -1,15 +1,20 @@
 <?php
 /*
 Plugin Name: WooCommerce Pay What You Want
-Plugin URI: https://github.com/draekko/woocommerce-pay-what-you-want
+Plugin URI: https://github.com/dsmturboawd/woocommerce-pay-what-you-want
 Description: Adds the ability to let users set their own prices for products in WooCommerce
-Author: Draekko
-Author URI: http://draekko.com
+Author: DSMTurboAWD
+Author URI: http://thresholdcomputing.net
 Requires at least: 3.9.1
-Tested up to: 3.9.2
-Version: 1.0.3
+Tested up to: 4.9.1
+Version: 2018.01.13
 License: GPLv3 or later
 */
+
+/*
+ * Forked from the original project by Draekko, in order to bring it up
+ * to current woocommerce/WordPress standards
+ */
 
 /*
 = Disclaimer =
